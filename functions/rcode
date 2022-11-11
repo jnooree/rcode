@@ -1,3 +1,5 @@
+# shellcheck shell=bash disable=SC2168
+
 function __rcode_process_target() {
 	[[ -d "$1" ]] || return
 
@@ -106,5 +108,6 @@ fi
 
 __rcode_run_ssh "$@"
 if [[ -n "$_cd_target" ]]; then
+  # shellcheck disable=SC2164
 	pushd "$_cd_target"
 fi
