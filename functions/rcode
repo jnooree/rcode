@@ -33,6 +33,7 @@ function __rcode_process_target() {
             "**/node_modules/*/**": true,
             "**/.cache/**": true,
             "**/build/**": true,
+            "**/site-packages/**": true,
         },
     },
 }
