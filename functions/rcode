@@ -2,6 +2,10 @@
 
 setopt localoptions NO_autonamedirs
 
+local _server="${RCODE_REMOTE:-$(hostname -s)}" _local="$LC_HOSTNAME"
+local OPTIND=1 n_flag r_flag w_flag c_flag i_flag g_flag f_flag
+local _cmd _cd_target
+
 function __rcode_process_target() {
 	[[ -d "$1" ]] || return
 
@@ -11,15 +15,11 @@ function __rcode_process_target() {
 			exit
 		}
 
-		if [[ $g_flag == true && ! -d ".git" ]]; then
-			git init
-		fi
+		if [[ $g_flag == true && ! -d ".git" ]] git init
+		if [[ $f_flag == true && -d ".git" ]] git fetch
 
-		if [[ $f_flag == true && -d ".git" ]]; then
-			git fetch
-		fi
-
-		if [[ $i_flag == true ]] && (($(find . -maxdepth 1 -name '*.code-workspace' | wc -l) == 0)); then
+		if [[ $i_flag == true &&
+				$(find . -maxdepth 1 -name '*.code-workspace' | wc -l) -eq 0 ]]; then
 			cat >"$(basename "$(pwd)").code-workspace" <<EOM
 {
     "folders": [
@@ -87,10 +87,6 @@ function __rcode_run_ssh() {
 	ssh -T "$_local" "code${n_flag-}${r_flag-}${w_flag-}$ssh_files"
 }
 
-local _server="${RCODE_REMOTE:-$(hostname -s)}" _local="$LC_HOSTNAME"
-local OPTIND=1 n_flag r_flag w_flag c_flag i_flag g_flag f_flag
-local _cmd _cd_target
-
 while getopts 'nrwcigf' flag &>/dev/null; do
 	case "$flag" in
 	n) n_flag=' --new-window' ;;
@@ -111,6 +107,6 @@ fi
 
 __rcode_run_ssh "$@"
 if [[ -n "$_cd_target" ]]; then
-  # shellcheck disable=SC2164
+	# shellcheck disable=SC2164
 	pushd "$_cd_target"
 fi
