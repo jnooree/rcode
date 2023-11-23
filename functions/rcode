@@ -1,6 +1,6 @@
 # shellcheck shell=bash disable=SC2168
 
-setopt localoptions NO_autonamedirs
+setopt localoptions extendedglob globdots nullglob NO_caseglob NO_autonamedirs
 
 local _server="${RCODE_REMOTE:-$(hostname -s)}" _local="$LC_HOSTNAME"
 local OPTIND=1 n_flag r_flag w_flag c_flag i_flag g_flag f_flag
@@ -18,8 +18,10 @@ function __rcode_process_target() {
 		if [[ $g_flag == true && ! -d ".git" ]] git init
 		if [[ $f_flag == true && -d ".git" ]] git fetch
 
-		if [[ $i_flag == true &&
-				$(find . -maxdepth 1 -name '*.code-workspace' | wc -l) -eq 0 ]]; then
+		if [[ $i_flag != true ]] return
+
+		workspaces=(*.code-workspace)
+		if [[ ${#workspaces} -eq 0 ]]; then
 			cat >"$(basename "$(pwd)").code-workspace" <<EOM
 {
     "folders": [
@@ -49,11 +51,10 @@ function __rcode_dispatch() {
 	target="$(realpath "$1")"
 
 	if [[ -d "$target" ]]; then
-		workspace="$(find -L "$target" -maxdepth 1 -type f -name '*.code-workspace')"
-		cnt="$(wc -l <<<"$workspace")"
-		if [[ -n "$workspace" && "$cnt" -eq 1 ]]; then
+		workspace=("$target/"*.code-workspace)
+		if [[ ${#workspace} -eq 1 ]]; then
 			file_dir='file'
-			target="$workspace"
+			target="$workspace[1]"
 		else
 			file_dir='folder'
 		fi
