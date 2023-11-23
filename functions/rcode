@@ -1,5 +1,7 @@
 # shellcheck shell=bash disable=SC2168
 
+setopt localoptions NO_autonamedirs
+
 function __rcode_process_target() {
 	[[ -d "$1" ]] || return
 
