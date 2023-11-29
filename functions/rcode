@@ -1,4 +1,4 @@
-# shellcheck shell=bash disable=SC2168
+# shellcheck disable=all
 
 setopt localoptions extendedglob globdots nullglob NO_caseglob NO_autonamedirs
 
@@ -7,7 +7,7 @@ local OPTIND=1 n_flag r_flag w_flag c_flag i_flag g_flag f_flag
 local _cmd _cd_target
 
 function __rcode_process_target() {
-	[[ -d "$1" ]] || return
+	[[ -d $1 ]] || return
 
 	(
 		cd "$1" || {
@@ -69,15 +69,15 @@ function __rcode_dispatch() {
 function __rcode_run_ssh() {
 	local _argv=("$@") _target ssh_files
 
-	if (($# == 1)) && [[ "$1" == "-" ]]; then
+	if [[ $# -eq 1 && $1 = "-" ]]; then
 		ssh_files=" -"
 	else
-		if (($# == 0)); then
+		if [[ $# -eq 0 ]]; then
 			_argv+=("$(pwd)")
 		fi
 
 		for _target in "${_argv[@]}"; do
-			if [[ -z "$_cd_target" && -n "$c_flag" && -d "$_target" ]]; then
+			if [[ -z $_cd_target && -n $c_flag && -d $_target ]]; then
 				_cd_target="$_target"
 			fi
 			__rcode_process_target "$_target"
@@ -102,12 +102,11 @@ while getopts 'nrwcigf' flag &>/dev/null; do
 done
 
 shift $((OPTIND - 1))
-if [[ "${1-}" = "--" ]]; then
+if [[ $1 = '--' ]]; then
 	shift
 fi
 
 __rcode_run_ssh "$@"
-if [[ -n "$_cd_target" ]]; then
-	# shellcheck disable=SC2164
+if [[ -n $_cd_target ]]; then
 	pushd "$_cd_target"
 fi
