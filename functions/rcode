@@ -15,10 +15,20 @@ function __rcode_process_target() {
 			exit
 		}
 
-		if [[ $g_flag == true && ! -d ".git" ]] git init
-		if [[ $f_flag == true && -d ".git" ]] git fetch
+		isgit="$(git rev-parse --is-inside-work-tree 2>/dev/null)"
+		if [[ $isgit != 'true' ]]; then
+			isgit="$(git rev-parse --is-inside-git-dir 2>/dev/null)"
+		fi
 
-		if [[ $i_flag != true ]] return
+		if [[ $g_flag = 'true' && $isgit != 'true' ]]; then
+			git init
+		elif [[ $f_flag = 'true' && $isgit = 'true' ]]; then
+			git fetch
+		fi
+
+		if [[ $i_flag != 'true' ]]; then
+			return
+		fi
 
 		workspaces=(*.code-workspace)
 		if [[ ${#workspaces} -eq 0 ]]; then
