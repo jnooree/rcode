@@ -57,19 +57,24 @@ EOM
 }
 
 function __rcode_dispatch() {
-	local file_dir target workspace cnt
+	local file_dir='file' target parent workspace cnt
 	target="$(realpath "$1")"
 
-	if [[ -d "$target" ]]; then
-		workspace=("$target/"*.code-workspace)
-		if [[ ${#workspace} -eq 1 ]]; then
-			file_dir='file'
-			target="$workspace[1]"
-		else
-			file_dir='folder'
-		fi
-	else
-		file_dir='file'
+	if [[ -d $target ]]; then
+		parent="$target"
+
+		while true; do
+			workspace=("$parent/"*.code-workspace)
+			if [[ ${#workspace} -eq 1 ]]; then
+				target="$workspace[1]"
+				break
+			elif [[ ${#workspace} -gt 1 || $parent = '/' ]]; then
+				file_dir='folder'
+				break
+			fi
+
+			parent="$(dirname "$parent")"
+		done
 	fi
 
 	echo -n "--${file_dir}-uri \
