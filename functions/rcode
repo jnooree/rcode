@@ -8,7 +8,7 @@ local OPTIND=1 c_flag i_flag g_flag f_flag cd_target
 local -a code_flags ssh_files
 
 function __rcode_process_target() {
-	[[ -d $1 ]] || return
+	[[ -d $1 ]] || return 0
 
 	(
 		cd "$1" || {
@@ -28,7 +28,7 @@ function __rcode_process_target() {
 		fi
 
 		if [[ $i_flag != true ]]; then
-			return
+			return 0
 		fi
 
 		workspaces=(*.code-workspace)
