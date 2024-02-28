@@ -59,7 +59,7 @@ EOM
 
 function __rcode_dispatch() {
 	local file_dir=file target parent workspace cnt
-	target="$(realpath "$1")"
+	target="$(realpath -m "$1")"
 
 	if [[ -d $target ]]; then
 		parent="$target"
