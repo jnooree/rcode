@@ -3,8 +3,9 @@
 setopt localoptions extendedglob globdots nullglob NO_caseglob NO_autonamedirs
 
 local _server="${RCODE_REMOTE:-$(hostname -s)}" _local="$LC_HOSTNAME"
-local OPTIND=1 n_flag r_flag w_flag c_flag i_flag g_flag f_flag
-local _cmd _cd_target
+local OPTIND=1 c_flag i_flag g_flag f_flag cd_target
+
+local -a code_flags ssh_files
 
 function __rcode_process_target() {
 	[[ -d $1 ]] || return
@@ -12,21 +13,21 @@ function __rcode_process_target() {
 	(
 		cd "$1" || {
 			echo >&2 "Failed to change directory to $1"
-			exit
+			exit 1
 		}
 
 		isgit="$(git rev-parse --is-inside-work-tree 2>/dev/null)"
-		if [[ $isgit != 'true' ]]; then
+		if [[ $isgit != true ]]; then
 			isgit="$(git rev-parse --is-inside-git-dir 2>/dev/null)"
 		fi
 
-		if [[ $g_flag = 'true' && $isgit != 'true' ]]; then
+		if [[ $g_flag = true && $isgit != true ]]; then
 			git init
-		elif [[ $f_flag = 'true' && $isgit = 'true' ]]; then
+		elif [[ $f_flag = true && $isgit = true ]]; then
 			git fetch
 		fi
 
-		if [[ $i_flag != 'true' ]]; then
+		if [[ $i_flag != true ]]; then
 			return
 		fi
 
@@ -57,7 +58,7 @@ EOM
 }
 
 function __rcode_dispatch() {
-	local file_dir='file' target parent workspace cnt
+	local file_dir=file target parent workspace cnt
 	target="$(realpath "$1")"
 
 	if [[ -d $target ]]; then
@@ -68,7 +69,7 @@ function __rcode_dispatch() {
 			if [[ ${#workspace} -eq 1 ]]; then
 				target="$workspace[1]"
 				break
-			elif [[ ${#workspace} -gt 1 || $parent = '/' ]]; then
+			elif [[ ${#workspace} -gt 1 || $parent = / ]]; then
 				file_dir='folder'
 				break
 			fi
@@ -77,37 +78,43 @@ function __rcode_dispatch() {
 		done
 	fi
 
-	echo -n "--${file_dir}-uri \
-'vscode-remote://ssh-remote+'$(printf '%q' "${_server}${target}")"
+	ssh_files+=(
+		"--${file_dir}-uri"
+		"vscode-remote://ssh-remote+${_server}${target}"
+	)
 }
 
 function __rcode_run_ssh() {
-	local _argv=("$@") _target ssh_files
+	local _target
+	local -a _argv=("$@") _ssh_opts=(-T)
 
-	if [[ $# -eq 1 && $1 = "-" ]]; then
-		ssh_files=" -"
+	if [[ $# -eq 1 && $1 = - ]]; then
+		ssh_files=(-)
 	else
+		_ssh_opts+=(-n)
+
 		if [[ $# -eq 0 ]]; then
 			_argv+=("$(pwd)")
 		fi
 
 		for _target in "${_argv[@]}"; do
-			if [[ -z $_cd_target && -n $c_flag && -d $_target ]]; then
-				_cd_target="$_target"
+			if [[ -z $cd_target && -n $c_flag && -d $_target ]]; then
+				cd_target="$_target"
 			fi
-			__rcode_process_target "$_target"
-			ssh_files+=" $(__rcode_dispatch "$_target")"
+			__rcode_process_target "$_target" || return 1
+			__rcode_dispatch "$_target"
 		done
 	fi
 
-	ssh -T "$_local" "code${n_flag-}${r_flag-}${w_flag-}$ssh_files"
+	ssh "${_ssh_opts[@]}" "$_local" \
+		code "${(q)code_flags[@]}" "${(q)ssh_files[@]}"
 }
 
 while getopts 'nrwcigf' flag &>/dev/null; do
 	case "$flag" in
-	n) n_flag=' --new-window' ;;
-	r) r_flag=' --reuse-window' ;;
-	w) w_flag=' --wait' ;;
+	n) code_flags+=(--new-window) ;;
+	r) code_flags+=(--reuse-window) ;;
+	w) code_flags+=(--wait) ;;
 	c) c_flag=true ;;
 	i) i_flag=true ;;
 	g) g_flag=true ;;
@@ -117,11 +124,11 @@ while getopts 'nrwcigf' flag &>/dev/null; do
 done
 
 shift $((OPTIND - 1))
-if [[ $1 = '--' ]]; then
+if [[ $1 = -- ]]; then
 	shift
 fi
 
-__rcode_run_ssh "$@"
-if [[ -n $_cd_target ]]; then
-	pushd "$_cd_target"
+__rcode_run_ssh "$@" || return 1
+if [[ -n $cd_target ]]; then
+	pushd "$cd_target"
 fi
