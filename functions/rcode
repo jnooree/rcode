@@ -12,17 +12,20 @@ function __resolve_dir_maybe_zoxide() {
 
 	if [[ -d $1 ]]; then
 		print -rn -- "$1"
-		return
+		return 0
 	fi
 
-	if [[ ! -e $1 ]] && command -v zoxide &>/dev/null &&
-		dir="$(zoxide query -i "$1")"; then
+	if [[ ! -e $1 ]] && command -v zoxide &>/dev/null; then
+		if ! dir="$(zoxide query -i "$1")"; then
+			return 1
+		fi
+
 		print -rn -- "$dir"
-		return
+		return 0
 	fi
 
 	print -rn -- "$1"
-	return
+	return 0
 }
 
 function __rcode_process_target() {
@@ -103,7 +106,7 @@ function __rcode_dispatch() {
 }
 
 function __rcode_run_ssh() {
-	local _target
+	local _target _orig_target
 	local -a _argv=("$@") _ssh_opts=(-T)
 
 	if [[ $# -eq 1 && $1 = - ]]; then
@@ -116,8 +119,12 @@ function __rcode_run_ssh() {
 		fi
 
 		for _target in "${_argv[@]}"; do
-		 	if [[ $z_flag = true ]]; then
-				_target="$(__resolve_dir_maybe_zoxide "$_target")"
+			_orig_target="$_target"
+
+			if [[ $z_flag = true ]] &&
+				! _target="$(__resolve_dir_maybe_zoxide "$_target")"; then
+				echo >&2 "Failed to resolve $_orig_target with zoxide"
+				return 1
 			fi
 
 			if [[ -z $cd_target && -n $c_flag && -d $_target ]]; then
