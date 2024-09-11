@@ -2,29 +2,24 @@
 
 setopt localoptions extendedglob globdots nullglob NO_caseglob NO_autonamedirs
 
-local _server="${RCODE_REMOTE:-$(hostname -s)}" _local="$LC_HOSTNAME"
+local rhost="${RCODE_REMOTE:-$(hostname -s)}" lhost="$LC_HOSTNAME"
 local OPTIND=1 c_flag i_flag g_flag f_flag z_flag cd_target
 
-local -a code_flags ssh_files
+local -a ssh_opts=(-T) code_flags ssh_files
 
-function __resolve_dir_maybe_zoxide() {
-	local dir
+function __rcode_resolve_zoxide() {
+	local _dir
 
-	if [[ -d $1 ]]; then
+	if [[ $# -eq 1 && -d $1 ]]; then
 		print -rn -- "$1"
 		return 0
 	fi
 
-	if [[ ! -e $1 ]] && command -v zoxide &>/dev/null; then
-		if ! dir="$(zoxide query -i "$1")"; then
-			return 1
-		fi
-
-		print -rn -- "$dir"
-		return 0
+	if ! _dir="$(zoxide query -i "$@")"; then
+		return 1
 	fi
 
-	print -rn -- "$1"
+	print -rn -- "$_dir"
 	return 0
 }
 
@@ -79,65 +74,70 @@ EOM
 }
 
 function __rcode_dispatch() {
-	local file_dir=file target parent workspace cnt
-	target="$(realpath -m "$1")"
+	local _file_dir=file _target _parent _workspace
+	_target="$(realpath -m "$1")"
 
-	if [[ -d $target ]]; then
-		parent="$target"
+	if [[ -d $_target ]]; then
+		_parent="$_target"
 
 		while true; do
-			workspace=("$parent/"*.code-workspace)
-			if [[ ${#workspace} -eq 1 ]]; then
-				target="$workspace[1]"
+			_workspace=("$_parent/"*.code-workspace)
+			if [[ ${#_workspace} -eq 1 ]]; then
+				_target="$_workspace[1]"
 				break
-			elif [[ ${#workspace} -gt 1 || $parent = / ]]; then
-				file_dir='folder'
+			elif [[ ${#_workspace} -gt 1 || $_parent = / ]]; then
+				_file_dir='folder'
 				break
 			fi
 
-			parent="$(dirname "$parent")"
+			_parent="$(dirname "$_parent")"
 		done
 	fi
 
 	ssh_files+=(
-		"--${file_dir}-uri"
-		"vscode-remote://ssh-remote+${_server}${target}"
+		"--${_file_dir}-uri"
+		"vscode-remote://ssh-remote+${rhost}${_target}"
 	)
 }
 
-function __rcode_run_ssh() {
-	local _target _orig_target
-	local -a _argv=("$@") _ssh_opts=(-T)
-
+function __rcode_build_args() {
 	if [[ $# -eq 1 && $1 = - ]]; then
 		ssh_files=(-)
-	else
-		_ssh_opts+=(-n)
-
-		if [[ $# -eq 0 ]]; then
-			_argv+=("$(pwd)")
-		fi
-
-		for _target in "${_argv[@]}"; do
-			_orig_target="$_target"
-
-			if [[ $z_flag = true ]] &&
-				! _target="$(__resolve_dir_maybe_zoxide "$_target")"; then
-				echo >&2 "Failed to resolve $_orig_target with zoxide"
-				return 1
-			fi
-
-			if [[ -z $cd_target && -n $c_flag && -d $_target ]]; then
-				cd_target="$_target"
-			fi
-
-			__rcode_process_target "$_target" || return 1
-			__rcode_dispatch "$_target"
-		done
+		return 0
 	fi
 
-	ssh "${_ssh_opts[@]}" "$_local" \
-		code "${(q)code_flags[@]}" "${(q)ssh_files[@]}"
+	local _target _orig_target
+	local -a _argv=("$@")
+
+	ssh_opts+=(-n)
+
+	if [[ $z_flag = true ]]; then
+		if ! _target="$(__rcode_resolve_zoxide "${_argv[@]}")"; then
+			echo >&2 "Failed to resolve $_orig_target with zoxide"
+			return 1
+		fi
+
+		if [[ -n $c_flag ]]; then
+			cd_target="$_target"
+		fi
+
+		__rcode_process_target "$_target" || return 1
+		__rcode_dispatch "$_target"
+		return 0
+	fi
+
+	if [[ $# -eq 0 ]]; then
+		_argv+=("$(pwd)")
+	fi
+
+	for _target in "${_argv[@]}"; do
+		if [[ -z $cd_target && -n $c_flag && -d $_target ]]; then
+			cd_target="$_target"
+		fi
+
+		__rcode_process_target "$_target" || return 1
+		__rcode_dispatch "$_target"
+	done
 }
 
 while getopts 'nrwcigfz' flag &>/dev/null; do
@@ -159,7 +159,15 @@ if [[ $1 = -- ]]; then
 	shift
 fi
 
-__rcode_run_ssh "$@" || return 1
+if [[ $z_flag = true ]] && ! command -v zoxide &>/dev/null; then
+	echo >&2 "zoxide is not installed, cannot use -z flag"
+	return 1
+fi
+
+__rcode_build_args "$@" || return 1
+ssh "${ssh_opts[@]}" "$lhost" code "${(q)code_flags[@]}" "${(q)ssh_files[@]}" ||
+	return 1
+
 if [[ -n $cd_target ]]; then
 	pushd "$cd_target"
 fi
