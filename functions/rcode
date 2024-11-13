@@ -94,6 +94,11 @@ function __rcode_dispatch() {
 		done
 	fi
 
+	# VSCode notebook creation bug workaround
+	if [[ ! -e $_target && $_target = *.ipynb ]]; then
+		touch "$_target"
+	fi
+
 	ssh_files+=(
 		"--${_file_dir}-uri"
 		"vscode-remote://ssh-remote+${rhost}${_target}"
