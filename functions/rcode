@@ -111,14 +111,14 @@ function __rcode_build_args() {
 		return 0
 	fi
 
-	local _target _orig_target
+	local _target
 	local -a _argv=("$@")
 
 	ssh_opts+=(-n)
 
 	if [[ $z_flag = true ]]; then
 		if ! _target="$(__rcode_resolve_zoxide "${_argv[@]}")"; then
-			echo >&2 "Failed to resolve $_orig_target with zoxide"
+			echo >&2 "Failed to resolve '${_argv[*]}' with zoxide"
 			return 1
 		fi
 
